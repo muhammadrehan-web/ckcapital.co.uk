@@ -26,8 +26,10 @@
   document.getElementById("drawerClose")?.addEventListener("click", () => drawer.classList.remove("open"));
 
   window.closeWin100kPopup = function () {
-    document.getElementById("popup-overlay-win100k").style.display = "none";
-    document.getElementById("popup-backdrop").style.display = "none";
+    const overlay = document.getElementById("popup-overlay-win100k");
+    const backdrop = document.getElementById("popup-backdrop");
+    if (overlay) overlay.style.display = "none";
+    if (backdrop) backdrop.style.display = "none";
   };
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") window.closeWin100kPopup();

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sign In – CK Capital</title>
+  <link rel="icon" href="assets/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/auth.css?v=1" />
+</head>
+<body>
+  <main class="auth">
+    <section class="auth-left">
+      <div class="auth-card">
+        <div class="auth-switch">
+          <a class="is-active" href="signin.html">Sign In</a>
+          <a href="signup.html">Sign Up</a>
+        </div>
+        <p class="auth-caption">Welcome! Please sign in to continue</p>
+        <form class="auth-form" action="signin.html" method="post">
+          <label class="field">
+            <span>Email</span>
+            <span class="input-wrap"><input type="email" name="email" placeholder="Email" required autocomplete="username" /></span>
+          </label>
+          <label class="field">
+            <span>Password</span>
+            <span class="input-wrap">
+              <input type="password" name="password" placeholder="Password" required autocomplete="current-password" />
+              <button class="eye" type="button" data-eye aria-label="Show password"><img src="assets/auth/eye-off.svg" alt="" /></button>
+            </span>
+          </label>
+          <div class="auth-meta">
+            <label class="remember"><input type="checkbox" name="remember" /> Remember Me</label>
+            <a class="forgot" href="forgot.html">Forgot Password ?</a>
+          </div>
+          <button class="auth-submit" type="submit">Submit</button>
+          <p class="auth-note" hidden>This demo stays on this site. Nothing is sent to CK Capital.</p>
+        </form>
+      </div>
+    </section>
+    <aside class="auth-right">
+      <a href="index.html"><img class="logo" src="assets/auth/logo.svg" alt="CK Capital" /></a>
+      <h1>Prop Firms are the start of your career not the end</h1>
+      <p>CK Capital is a stepping stone for traders to under go a evaluation to follow the guidance and adhere to the rules in order to be a profitable consistent Traders. It’s simple, this means that you can trade private equity, private investors, hedge funds, institutional prop and any other methods of fund allocation and be able to be a consistency profitable trader in the financial markets.</p>
+    </aside>
+  </main>
+  <script src="js/auth.js?v=2"></script>
+</body>
+</html>
