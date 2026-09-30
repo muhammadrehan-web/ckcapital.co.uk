@@ -8,12 +8,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/auth.css?v=1" />
+  <link rel="stylesheet" href="css/auth.css?v=4" />
 </head>
 <body>
-  <main class="auth">
+  <main class="auth is-signup">
     <section class="auth-left">
-      <div class="auth-card">
+      <div class="auth-scroll">
+        <div class="auth-card">
+        <a class="card-logo" href="index.html"><img src="assets/auth/logo.svg" alt="CK Capital" /></a>
         <div class="auth-switch">
           <a href="signin.html">Sign In</a>
           <a class="is-active" href="signup.html">Sign Up</a>
@@ -32,13 +34,16 @@
             <span>Nick Name</span>
             <span class="input-wrap"><input type="text" name="nickName" placeholder="Nick Name" autocomplete="nickname" /></span>
           </label>
-          <label class="field">
+          <div class="field">
             <span>Contact</span>
             <span class="phone">
-              <span class="input-wrap code"><input type="text" name="code" value="44" aria-label="Country code" /></span>
+              <span class="input-wrap code">
+                <span class="plus">+</span>
+                <input type="text" name="code" value="44" inputmode="numeric" maxlength="4" aria-label="Country code" />
+              </span>
               <span class="input-wrap"><input type="tel" name="contact" placeholder="Contact Number" autocomplete="tel" /></span>
             </span>
-          </label>
+          </div>
           <label class="field">
             <span>Email</span>
             <span class="input-wrap"><input type="email" name="email" placeholder="Email Address" required autocomplete="email" /></span>
@@ -47,10 +52,13 @@
             <span>Confirm Email</span>
             <span class="input-wrap"><input type="email" name="confirmEmail" placeholder="Confirm Email Address" required autocomplete="email" /></span>
           </label>
-          <label class="field">
+          <div class="field">
             <span>Country</span>
-            <span class="input-wrap"><input type="text" name="country" value="United Kingdom" autocomplete="country-name" /></span>
-          </label>
+            <span class="input-wrap select-wrap">
+              <input type="text" name="country" value="United Kingdom" autocomplete="off" />
+            </span>
+            <div class="picker-menu" data-menu="country" hidden></div>
+          </div>
           <label class="field">
             <span>City</span>
             <span class="input-wrap"><input type="text" name="city" placeholder="City" autocomplete="address-level2" /></span>
@@ -62,9 +70,21 @@
               <button class="eye" type="button" data-eye aria-label="Show password"><img src="assets/auth/eye-off.svg" alt="" /></button>
             </span>
           </label>
+          <div class="recaptcha">
+            <label>
+              <input type="checkbox" name="robot" />
+              <span>I'm not a robot</span>
+            </label>
+            <span class="recaptcha-brand">
+              <svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><path fill="#1c73e8" d="M16 4a12 12 0 0 1 10.2 5.7l-3.2 1.8A8 8 0 0 0 8.4 16H12l-5 5-5-5h3.2A12 12 0 0 1 16 4z"/><path fill="#9aa0a6" d="M26.8 16H23l5 5 5-5h-3.2A12 12 0 0 1 5.8 22.3l3.2-1.8A8 8 0 0 0 26.8 16z"/></svg>
+              <strong>reCAPTCHA</strong>
+              <span>Privacy - Terms</span>
+            </span>
+          </div>
           <button class="auth-submit" type="submit">Sign Up</button>
           <p class="auth-note" hidden>This demo stays on this site. Nothing is sent to CK Capital.</p>
         </form>
+      </div>
       </div>
     </section>
     <aside class="auth-right">
@@ -73,6 +93,6 @@
       <p>CK Capital is a stepping stone for traders to under go a evaluation to follow the guidance and adhere to the rules in order to be a profitable consistent Traders. It’s simple, this means that you can trade private equity, private investors, hedge funds, institutional prop and any other methods of fund allocation and be able to be a consistency profitable trader in the financial markets.</p>
     </aside>
   </main>
-  <script src="js/auth.js?v=2"></script>
+  <script src="js/auth.js?v=5"></script>
 </body>
 </html>

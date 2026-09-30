@@ -868,9 +868,24 @@
     var formEl = event.target.closest(".local-form");
     if (!formEl) return;
     event.preventDefault();
-    if (formEl.classList.contains("profile-form") || formEl.classList.contains("password-form")) {
-      if (formEl.classList.contains("profile-form")) state.profileEdit = false;
-      if (formEl.classList.contains("password-form")) state.passwordEdit = false;
+    if (formEl.classList.contains("profile-form")) {
+      state.profileEdit = false;
+      fetch("api/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(state.profileFields)
+      }).then(function (response) {
+        if (!response.ok) throw new Error("save failed");
+        toast("Personal details saved in this site's database. Nothing is sent to CK Capital.");
+        paint();
+      }).catch(function () {
+        toast("Could not save to the database. Nothing is sent to CK Capital.");
+        paint();
+      });
+      return;
+    }
+    if (formEl.classList.contains("password-form")) {
+      state.passwordEdit = false;
       toast("This demo stays on this site. Nothing is sent to CK Capital.");
       paint();
       return;
@@ -879,6 +894,15 @@
     if (noteEl) noteEl.hidden = false;
   });
 
-  window.addEventListener("hashchange", paint);
-  paint();
+  fetch("api/profile").then(function (response) {
+    return response.ok ? response.json() : null;
+  }).then(function (data) {
+    if (!data || !data.profile) return;
+    Object.keys(state.profileFields).forEach(function (key) {
+      if (data.profile[key] != null) state.profileFields[key] = data.profile[key];
+    });
+  }).catch(function () {}).then(function () {
+    window.addEventListener("hashchange", paint);
+    paint();
+  });
 })();
