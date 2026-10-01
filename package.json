@@ -5,6 +5,7 @@
     "start": "node server.js"
   },
   "dependencies": {
+    "nodemailer": "^10.0.13",
     "pg": "^8.16.3"
   }
 }

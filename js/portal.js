@@ -78,6 +78,8 @@
     resetEnds: 0,
     dashFilter: "All",
     dashOpen: false,
+    orders: [],
+    accountId: "",
     caseType: "general",
     videoCat: "Price Action",
     affCode: "",
@@ -99,7 +101,14 @@
       current_password: "",
       new_password: "",
       verifyPassword: ""
-    }
+    },
+    payMethod: "card",
+    addressOpen: false,
+    savedAddress: null,
+    coupon: "",
+    terms: [false, false, false, false, false],
+    buyFirst: null,
+    buyLast: null
   };
   var resetTimer = null;
 
@@ -109,6 +118,26 @@
     });
   }
 
+  function platformName(value) {
+    return value === "mt5" ? "MT5" : "TradeLocker";
+  }
+
+  function orderDate(value) {
+    var date = new Date(value);
+    if (isNaN(date.getTime())) return "";
+    return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  }
+
+  function selectedOrder() {
+    var found = state.orders.filter(function (order) { return order.id === state.accountId; })[0];
+    return found || state.orders[0] || null;
+  }
+
+  function visibleOrders() {
+    if (state.dashFilter === "Inactive") return [];
+    return state.orders;
+  }
+
   function money(amount) {
     return "$" + amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
@@ -116,6 +145,30 @@
   function currentId() {
     var id = (location.hash || "#plans").slice(1);
     return VIEW_GROUP[id] ? id : "plans";
+  }
+
+  function applyPendingCheckout() {
+    var raw = sessionStorage.getItem("ck_checkout");
+    if (!raw) return;
+    sessionStorage.removeItem("ck_checkout");
+    try {
+      var order = JSON.parse(raw);
+      if (!order || !planById(order.plan) || !sizeByLabel(order.size)) return;
+      if (order.platform !== "mt5" && order.platform !== "tradelocker") order.platform = "tradelocker";
+      state.order = order;
+      state.plan = order.plan;
+      state.platform = order.platform;
+      if (location.hash !== "#checkout") location.hash = "checkout";
+    } catch (e) {}
+  }
+
+  function priceFor(plan, size) {
+    if (!size) return "";
+    if (plan && plan.id === "instant") {
+      var instant = { "5K": "$48.00", "10K": "$78.00", "25K": "$139.00", "50K": "$274.50", "100K": "$549.00", "200K": "$1,098.00" };
+      return instant[size.label] || "";
+    }
+    return size.now;
   }
 
   function planById(id) {
@@ -150,10 +203,14 @@
     return '<section class="page"><h1>' + esc(title) + "</h1>" + body + "</section>";
   }
 
-  function table(headers, emptyText) {
+  function table(headers, emptyText, rows) {
+    var body = (rows || []).map(function (row) {
+      return "<tr>" + row.map(function (cell) { return "<td>" + esc(cell) + "</td>"; }).join("") + "</tr>";
+    }).join("");
+    var empty = body ? "" : '<p class="no-data">' + esc(emptyText || "No Data found") + "</p>";
     return '<div class="main_table"><table><thead><tr>' +
       headers.map(function (header) { return "<th>" + esc(header) + "</th>"; }).join("") +
-      '</tr></thead><tbody></tbody></table><p class="no-data">' + esc(emptyText || "No Data found") + "</p></div>";
+      "</tr></thead><tbody>" + body + "</tbody></table>" + empty + "</div>";
   }
 
   function goalGrid(rows) {
@@ -206,6 +263,18 @@
       '<img class="eye_icon" data-eye src="assets/portal/eye-close.svg" alt="" width="24" height="24"></div></div></div>';
   }
 
+  function countryOptions() {
+    var current = state.profileFields.country || "";
+    var names = (window.CK_COUNTRIES || []).map(function (row) { return row[0]; });
+    if (current && current !== "Select your country" && names.indexOf(current) === -1) names.unshift(current);
+    var placeholder = current && current !== "Select your country" ? "" : " selected";
+    var html = '<option value=""' + placeholder + ">Select your country</option>";
+    names.forEach(function (name) {
+      html += '<option value="' + esc(name) + '"' + (name === current ? " selected" : "") + ">" + esc(name) + "</option>";
+    });
+    return html;
+  }
+
   function accountDetails() {
     var contactEdit = state.profileEdit ? " editable" : "";
     return '<div class="generalinfo"><div class="general-info-wrapper"><div class="generalinfo_top"><div class="generalinfo_top_wrapper">' +
@@ -226,7 +295,7 @@
         '<div class="account_input_container_lower">' +
           accountField("Email", "email", "Email") +
           '<div class="account_input country_selector"><label for="country">Country</label><br><div class="account_input_wrapper' + contactEdit + '">' +
-            '<select class="account_details_input" id="country" name="country"><option>Select your country</option></select></div></div>' +
+            '<select class="account_details_input" id="country" name="country">' + countryOptions() + "</select></div></div>" +
           accountField("City", "city", "City") +
         "</div></div></div></form></div></div>" +
       '<div class="account_password"><form class="local-form password-form"><div class="account_password_input_container">' +
@@ -237,7 +306,7 @@
           passwordField("New Password", "new_password") +
           passwordField("Verify Password", "verifyPassword") +
         "</div></div></form></div>" +
-      '<div class="btns_wrapper"><a class="logout-btn" href="signin.html">Log Out</a></div>' +
+      '<div class="btns_wrapper"><a class="logout-btn" href="signin.html" data-logout>Log Out</a></div>' +
       "</div></div></div></div>";
   }
 
@@ -290,8 +359,8 @@
     return '<p class="demo-note" hidden>This demo stays on this site. Nothing is sent to CK Capital.</p>';
   }
 
-  function form(fields, submitLabel) {
-    var html = '<form class="local-form"><div class="form-grid">';
+  function form(fields, submitLabel, extraClass) {
+    var html = '<form class="local-form' + (extraClass ? " " + extraClass : "") + '"><div class="form-grid">';
     fields.forEach(function (field) {
       var wide = field.wide ? " full" : "";
       html += '<label class="field' + wide + '"><span>' + esc(field.label) + "</span>";
@@ -355,21 +424,125 @@
     return page("Funding Evaluation", "buy", "plans", body);
   }
 
+  var LIST_PRICES = { "5K": 64, "10K": 193.33, "25K": 228, "50K": 360.8, "100K": 763.33, "200K": 2115, "300K": 3281.67 };
+  var INSTANT_LIST = { "5K": 160, "10K": 260, "25K": 463.33, "50K": 915, "100K": 1830, "200K": 3660 };
+  var AMOUNTS = ["5K", "10K", "25K", "50K", "100K", "200K", "300K"];
+
+  function listAmount(planId, sizeLabel) {
+    var table = planId === "instant" ? INSTANT_LIST : LIST_PRICES;
+    return table[sizeLabel];
+  }
+
+  function formatList(amount) {
+    return "$" + amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function amountNumber(label) {
+    return String(parseInt(label, 10) * 1000);
+  }
+
   function checkoutView() {
-    var order = state.order;
-    if (!order) return page("Payments", "buy", "plans", '<div class="panel"><p class="muted">Choose a plan from Funding Evaluation.</p></div>');
-    var plan = planById(order.plan);
-    var size = sizeByLabel(order.size);
-    var lines = rulesFor(plan, size).map(function (row) {
-      return "<li><span>" + esc(row[0]) + "</span><strong>" + esc(row[1]) + "</strong></li>";
+    var order = state.order || { plan: state.plan || "standard", size: "5K", platform: state.platform || "tradelocker" };
+    state.order = order;
+    if (state.buyFirst == null) state.buyFirst = state.profileFields.first_name || "";
+    if (state.buyLast == null) state.buyLast = state.profileFields.last_name || "";
+    var plan = planById(order.plan) || PLANS[0];
+    var amounts = plan.id === "instant" ? AMOUNTS.slice(0, 6) : AMOUNTS;
+    if (amounts.indexOf(order.size) === -1) order.size = amounts[0];
+    var base = listAmount(plan.id, order.size);
+    var total = state.payMethod === "crypto" ? Math.round(base * 95) / 100 : base;
+    var priceText = formatList(total);
+    var ready = state.terms[0] && state.terms[1] && state.terms[2] && state.terms[3];
+    function pill(cls, on, label, attr) {
+      return '<button class="' + cls + (on ? " active_option" : "") + '" type="button" ' + attr + ">" + esc(label) + "</button>";
+    }
+    var methods = [
+      { id: "card", label: "Card", icon: '<img class="pay-icon" src="assets/portal/pay-card.svg" alt="">' },
+      { id: "crypto", label: "Crypto", icon: '<img class="pay-icon pay-icon-crypto" src="assets/portal/pay-crypto.svg" alt="">', offer: true },
+      { id: "paymid", label: "Paymid", icon: '<span class="pay-mid-wrap"><img src="assets/portal/pay-mid.png" alt=""></span>' }
+    ].map(function (item) {
+      return '<button class="payment-method-options' + (state.payMethod === item.id ? " active_option" : "") + '" type="button" data-pay="' + item.id + '"><span class="pay-label">' + item.icon + esc(item.label) + "</span>" +
+        (item.offer ? '<span class="offer_container">5% off with crypto</span>' : "") + "</button>";
     }).join("");
-    var price = plan.id === "standard" ? size.now : "Shown on the Standard challenge";
-    var body = '<div class="checkout-grid"><div class="panel"><h2>' + esc(plan.name) + " · " + esc(size.label) + " · " +
-      esc(order.platform === "mt5" ? "MT5" : "TradeLocker") + '</h2><ul class="rule-list">' + lines +
-      "</ul></div><div class=\"panel\"><h2>Summary</h2><ul class=\"rule-list\"><li><span>Price</span><strong>" +
-      esc(price) + "</strong></li><li><span>Discount</span><strong>" + (plan.id === "standard" ? esc(size.was) : "—") +
-      '</strong></li></ul>' + form([{ label: "Coupon", name: "coupon" }], "Pay") + "</div></div>";
-    return page("Payments", "buy", "plans", body);
+    var types = PLANS.map(function (item) {
+      return pill("challenge-type-options", item.id === plan.id, item.name, 'data-ctype="' + item.id + '"');
+    }).join("");
+    var sizes = amounts.map(function (label) {
+      return pill("challange-amount-options", label === order.size, amountNumber(label), 'data-camount="' + label + '"');
+    }).join("");
+    var platforms = [
+      ["tradelocker", "TradeLocker"],
+      ["mt5", "MT5"]
+    ].map(function (item) {
+      return pill("choose-trading-options", order.platform === item[0], item[1], 'data-cplatform="' + item[0] + '"');
+    }).join("");
+    var terms = [
+      'I declare that I have read and agree with <a href="https://ckcapital.co.uk/terms-and-conditions/" target="_blank" rel="noopener">Terms and Conditions, Privacy Policy, Return Policy</a>&nbsp;*',
+      'I am not a citizen or resident in the <a href="https://ckcapital.co.uk/terms-and-conditions/" target="_blank" rel="noopener">Prohibited Countries</a>&nbsp;*',
+      "I understand that providing personal details that do not match ID/official documents will result in the suspension of my payout(s) and the closure of my account(s).&nbsp;*",
+      'I declare that I have read and agree with <a href="https://ckcapital.co.uk/returns-policy/" target="_blank" rel="noopener">Cancellation &amp; Refund Policy</a>&nbsp;*',
+      "I agree to receive product updates and news letters"
+    ].map(function (text, index) {
+      return '<label class="summary_lower_bottom_top"><input type="checkbox" data-term="' + index + '"' + (state.terms[index] ? " checked" : "") + "><p>" + text + "</p></label>";
+    }).join("");
+    return '<section class="page buy-account"><div class="buy_funded_container"><h2 class="buy-funded-header">Buy Account</h2>' +
+      '<div class="step_1"><div class="heading"><h1>Step 1</h1></div><div class="fll_details">' +
+      '<div class="payment_method"><span>Payment Method</span><div class="payment-method-container">' + methods + "</div></div>" +
+      '<div class="challange_type"><span>Challenge type</span><div class="challenge-type-container">' + types + "</div></div>" +
+      '<div class="challange_amount"><span>Choose Challenge Amount</span><div class="challange-amount-container">' + sizes + "</div></div>" +
+      '<div class="choose_trading_platform"><span>Choose your trading platform</span><div class="choose-trading-container">' + platforms + "</div></div>" +
+      "</div>" +
+      '<div class="addressSelecotorCon"><div class="userDetails"><label for="buyFirst">First Name</label><div class="general_info_form_input_container"><input id="buyFirst" type="text" placeholder="First Name" value="' + esc(state.buyFirst) + '"></div></div>' +
+      '<div class="userDetails"><label for="buyLast">Last Name</label><div class="general_info_form_input_container"><input id="buyLast" type="text" placeholder="Last Name" value="' + esc(state.buyLast) + '"></div></div></div>' +
+      '<div class="invoice_details"><h4>Address Details</h4><div class="address_containers">' + addressBox() + "</div></div>" +
+      "</div>" +
+      '<div class="summary"><div class="summary_wrapper"><h4>Summary</h4><div class="summary_upper_wrapper">' +
+      "<label>Challenge Type</label><div class=\"summary_upper_coupon\">" + esc(plan.name) + "</div>" +
+      "<label>Challenge Amount</label><div class=\"summary_upper_coupon\">" + amountNumber(order.size) + "</div>" +
+      '<label>Discount code</label><div class="summary_upper_coupon coupon-row"><input id="buyCoupon" type="text" placeholder="Coupon Code" value="' + esc(state.coupon) + '"><button class="applyButton" type="button" data-apply' + (state.coupon ? "" : " disabled") + ">APPLY</button></div>" +
+      '</div><div class="summary_lower"><div class="summary_lower_top_wrapper"><div><p class="title">Challenge Name</p><p class="value">' + esc(order.size) + " Challenge, " + esc(plan.name) + '</p></div><div><p class="title">Price</p><p class="value">' + priceText + "</p></div></div>" +
+      '<div class="summary_lower_middle_wrapper"><h5>Total</h5><p class="value">' + priceText + "</p></div>" +
+      terms +
+      '<p class="red_text"' + (ready ? " hidden" : "") + ">Please accept all the terms and conditions</p></div>" +
+      '<button class="buy_now" type="button" data-buy-now><span>Buy Now:</span> ' + priceText + "</button></div></div></div>" +
+      addressModal() + "</section>";
+  }
+
+  function addressBox() {
+    var saved = state.savedAddress;
+    if (saved && (saved.street_address || saved.city)) {
+      return '<button class="add_address_box saved-address" type="button" data-address><strong>' +
+        esc(saved.street_address || "Address") + "</strong><span>" + esc([saved.city, saved.country].filter(Boolean).join(", ")) + "</span></button>";
+    }
+    return '<button class="add_address_box" type="button" data-address><div><svg xmlns="http://www.w3.org/2000/svg" width="58" height="58" viewBox="0 0 58 58" fill="none" aria-hidden="true"><path d="M51.5833 28.9993C51.5833 41.288 41.6219 51.2493 29.3333 51.2493C17.0446 51.2493 7.08325 41.288 7.08325 28.9993C7.08325 16.7106 17.0446 6.74933 29.3333 6.74933C41.6219 6.74933 51.5833 16.7106 51.5833 28.9993Z" stroke="white" stroke-width="3" stroke-linejoin="round"/><path d="M29.3333 19.4993V38.4993M19.8333 28.9993H38.8333" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><h3>Add New Address</h3></div></button>';
+  }
+
+  function addressField(label, id, name, placeholder, value) {
+    return '<div class="input_wrapper"><span>' + label + '</span><label class="address_info_form_input_container"><input id="' +
+      id + '" name="' + name + '" type="text" placeholder="' + placeholder + '" value="' + esc(value || "") + '"></label></div>';
+  }
+
+  function addressModal() {
+    if (!state.addressOpen) return "";
+    var saved = state.savedAddress || {};
+    var names = (window.CK_COUNTRIES || []).map(function (row) { return row[0]; });
+    if (!names.length) names = ["United Kingdom"];
+    var country = saved.country || "United Kingdom";
+    var options = names.map(function (name) {
+      return '<option' + (name === country ? " selected" : "") + ">" + esc(name) + "</option>";
+    }).join("");
+    return '<div class="addr-modal" data-addr-close><div class="add_address_modal_container"><div class="modal_header"><h4 class="title_heading">Add Address</h4><button class="cancel_btn" type="button" data-addr-cancel>Cancel</button></div><div class="add_address_info_container"><p class="address_tag">Add a new Address</p><div class="address_form_wrapper"><form class="address-form">' +
+      addressField("First Name", "addrFirst", "first_name", "First Name", saved.first_name) +
+      addressField("Last Name", "addrLast", "last_name", "Last Name", saved.last_name) +
+      addressField("Email", "addrEmail", "email", "Email", saved.email) +
+      addressField("Contact", "addrContact", "number", "Contact Number", saved.number) +
+      addressField("Apartment No", "addrApt", "apartment_no", "Apartment/House no.", saved.apartment_no) +
+      addressField("Street Address", "addrStreet", "street_address", "Street Address", saved.street_address) +
+      '<div class="input_wrapper"><span>Country</span><label class="address_info_form_input_container"><select id="addrCountry" name="country">' + options + "</select></label></div>" +
+      addressField("City", "addrCity", "city", "City", saved.city) +
+      addressField("State", "addrState", "state", "State", saved.state) +
+      addressField("Zip Code", "addrZip", "zip_code", "Zip Code", saved.zip_code) +
+      '<div class="btn_wrapper"><button class="save_btn" type="button" data-addr-save>Save Information</button></div></form></div></div></div></div>';
   }
 
   function metricsView() {
@@ -383,7 +556,20 @@
       '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1L5 5L9 1" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>' +
       '<div class="accfilter_dropdown_menu"' + (state.dashOpen ? "" : " hidden") + ">" + options + "</div></div>" +
       '<a class="add_account" href="#plans">Add Account</a></div></div>' +
-      '<p class="no-data">No Data found</p></section>';
+      (function () {
+        var orders = visibleOrders();
+        if (!orders.length) return '<p class="no-data">No Data found</p>';
+        return '<div class="dash-grid">' + orders.map(function (order) {
+          return '<article class="dashboard_data_box">' +
+            '<span class="status">Active</span>' +
+            '<div class="data-row"><span>Challenge</span><strong>' + esc(order.plan_name) + "</strong></div>" +
+            '<div class="data-row"><span>Account size</span><strong>' + esc(order.account_size) + "</strong></div>" +
+            '<div class="data-row"><span>Platform</span><strong>' + esc(platformName(order.platform)) + "</strong></div>" +
+            '<div class="data-row"><span>Price</span><strong>' + esc(order.price) + "</strong></div>" +
+            '<div class="data-row"><span>Start date</span><strong>' + esc(orderDate(order.created_at)) + "</strong></div>" +
+            "</article>";
+        }).join("") + "</div>";
+      })() + "</section>";
   }
 
   function statRow(label, value, extra) {
@@ -421,6 +607,11 @@
     var ranges = ["1D", "1W", "1M", "ALL"].map(function (name) {
       return '<button type="button" data-range="' + name + '"' + (state.range === name ? ' class="is-on"' : "") + ">" + name + "</button>";
     }).join("");
+    var account = selectedOrder();
+    var accountLabel = account ? account.plan_name + " · " + account.account_size : "";
+    var accountChoices = state.orders.filter(function () { return state.accountFilter !== "inactive"; }).map(function (order) {
+      return '<button type="button" data-pick-account="' + esc(order.id) + '">' + esc(order.plan_name + " · " + order.account_size) + "</button>";
+    }).join("");
     var goals = [
       ["Max loss", "NaN", "NaN"],
       ["Profit", "", ""],
@@ -433,25 +624,25 @@
       statRow("Win Rate", "NaN%"),
       statRow("Lots", ""),
       statRow("No. of trade", ""),
-      statRow("Account size", ""),
+      statRow("Account size", account ? account.account_size : ""),
       statRow("Consistency", " %"),
       statRow("Next payout date", ""),
       statRow("Reset In", "13:18:56", "time_wrapper"),
       statRow("Reset Balance", "$NaN"),
       statRow("Reset Equity", "$NaN"),
-      statRow("Trading Platform", ""),
+      statRow("Trading Platform", account ? platformName(account.platform) : ""),
       statRow("Best day date", ""),
       statRow("Best day profit", "$NaN")
     ].join("");
     return '<section class="programobjectives-container">' +
       '<div class="header-selector"><h4 class="programobjectives_header">Program Objectives</h4>' +
-      '<button class="account-selector" type="button" data-account-toggle><span class="selected-account"><p></p></span>' +
+      '<button class="account-selector" type="button" data-account-toggle><span class="selected-account"><p>' + esc(accountLabel) + '</p></span>' +
       '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="7" viewBox="0 0 10 7" fill="none" aria-hidden="true"><path d="M1 1.5L5 5.5L9 1.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>' +
       '<div class="account-dropdown-selector ' + (state.accountOpen ? "visible" : "notVisible") + '">' +
       '<div class="filter-button"><button type="button" data-account-filter="active"' + (state.accountFilter === "active" ? ' class="active-filter-button"' : "") +
       '>Active</button><button type="button" data-account-filter="inactive"' + (state.accountFilter === "inactive" ? ' class="active-filter-button"' : "") +
-      ">Inactive</button></div><div class=\"filter-accounts\"></div></div></div>" +
-      '<div class="information-container"><div class="account-status status"><h2>N/A</h2></div>' +
+      ">Inactive</button></div><div class=\"filter-accounts\">" + accountChoices + "</div></div></div>" +
+      '<div class="information-container"><div class="account-status status"><h2>' + (account ? "Active" : "N/A") + '</h2></div>' +
       '<div class="program_objective_right_header"><button class="account-info-button" type="button" data-account-info><h2>Account Info</h2></button></div></div>' +
       '<div class="row1 infobox_main"><div class="financialperformance_main"><div class="financialperformance-container">' +
       "<h4>Financial Performance</h4><div class=\"Chart_tabination\"><div class=\"chart-modes\">" + modes +
@@ -463,9 +654,9 @@
       '<div class="goalsContent">' + goals + "</div></div></div>" +
       '<div class="account-info-box"' + (state.infoOpen ? "" : " hidden") + '><div class="account-info-card" role="dialog" aria-label="Account Info">' +
       '<div class="account-info-top"><h3>Account Info</h3><button type="button" data-info-close>Close</button></div>' +
-      "<ul><li><span>Id</span><strong>N/A</strong></li><li><span>Challenge</span><strong>N/A</strong></li>" +
-      "<li><span>Phase</span><strong>N/A</strong></li><li><span>Start Date</span><strong>N/A</strong></li>" +
-      "<li><span>Next Payout Date</span><strong>N/A</strong></li><li><span>Trading Platform</span><strong>N/A</strong></li>" +
+      "<ul><li><span>Id</span><strong>" + esc(account ? String(account.id).slice(0, 8) : "N/A") + "</strong></li><li><span>Challenge</span><strong>" + esc(account ? account.plan_name : "N/A") + "</strong></li>" +
+      "<li><span>Phase</span><strong>" + (account ? (account.plan_name === "Instant Funding" ? "Funded" : "Phase 1") : "N/A") + "</strong></li><li><span>Start Date</span><strong>" + esc(account ? orderDate(account.created_at) : "N/A") + "</strong></li>" +
+      "<li><span>Next Payout Date</span><strong>N/A</strong></li><li><span>Trading Platform</span><strong>" + esc(account ? platformName(account.platform) : "N/A") + "</strong></li>" +
       "<li><span>Add on</span><strong>No</strong></li></ul></div></div></section>";
   }
 
@@ -489,12 +680,19 @@
     plans: plansView,
     checkout: checkoutView,
     contracts: function () {
+      var rows = state.orders.map(function (order) {
+        var phase = order.plan_name === "Instant Funding" ? "Funded" : "Phase 1";
+        return [String(order.id).slice(0, 8), order.plan_name, phase, platformName(order.platform), order.price, orderDate(order.created_at), "Active"];
+      });
       return page("Contract List", "buy", "contracts", '<div class="panel">' +
-        table(["Id", "Challenge Name", "Phase", "Trading Platform", "Price", "Start Date", "Status"]) + "</div>");
+        table(["Id", "Challenge Name", "Phase", "Trading Platform", "Price", "Start Date", "Status"], "No Data found", rows) + "</div>");
     },
     history: function () {
+      var rows = state.orders.map(function (order, index) {
+        return [String(index + 1), order.plan_name + " " + order.account_size, String(order.id).slice(0, 8), String(order.id).slice(0, 8), orderDate(order.created_at), order.price, "—", "Paid"];
+      });
       return page("Payment History", "buy", "history", '<div class="panel">' +
-        table(["#", "Funding Evaluation", "Account Number", "Transaction Id", "Date", "Amount", "Invoice", "Status"]) + "</div>");
+        table(["#", "Funding Evaluation", "Account Number", "Transaction Id", "Date", "Amount", "Invoice", "Status"], "No Data found", rows) + "</div>");
     },
     metrics: metricsView,
     objectives: objectivesView,
@@ -700,6 +898,13 @@
     if (name && Object.prototype.hasOwnProperty.call(state.passwordFields, name)) {
       state.passwordFields[name] = event.target.value;
     }
+    if (event.target.id === "buyFirst") state.buyFirst = event.target.value;
+    if (event.target.id === "buyLast") state.buyLast = event.target.value;
+    if (event.target.id === "buyCoupon") {
+      state.coupon = event.target.value;
+      var apply = document.querySelector("[data-apply]");
+      if (apply) apply.disabled = !state.coupon.trim();
+    }
   });
 
   document.getElementById("view").addEventListener("click", function (event) {
@@ -724,6 +929,13 @@
     if (filterBtn) {
       state.accountFilter = filterBtn.getAttribute("data-account-filter");
       state.accountOpen = true;
+      paint();
+      return;
+    }
+    var picked = event.target.closest("[data-pick-account]");
+    if (picked) {
+      state.accountId = picked.getAttribute("data-pick-account");
+      state.accountOpen = false;
       paint();
       return;
     }
@@ -777,6 +989,131 @@
     if (buy) {
       state.order = { plan: state.plan, size: buy.getAttribute("data-buy"), platform: state.platform };
       location.hash = "checkout";
+      return;
+    }
+    function rememberCheckout() {
+      var coupon = document.getElementById("buyCoupon");
+      var first = document.getElementById("buyFirst");
+      var last = document.getElementById("buyLast");
+      if (coupon) state.coupon = coupon.value;
+      if (first) state.buyFirst = first.value;
+      if (last) state.buyLast = last.value;
+    }
+    var pay = event.target.closest("[data-pay]");
+    if (pay) {
+      rememberCheckout();
+      state.payMethod = pay.getAttribute("data-pay");
+      paint();
+      return;
+    }
+    var ctype = event.target.closest("[data-ctype]");
+    if (ctype) {
+      rememberCheckout();
+      state.order = state.order || { plan: "standard", size: "5K", platform: state.platform };
+      state.order.plan = ctype.getAttribute("data-ctype");
+      state.plan = state.order.plan;
+      paint();
+      return;
+    }
+    var camount = event.target.closest("[data-camount]");
+    if (camount) {
+      rememberCheckout();
+      state.order = state.order || { plan: state.plan, size: "5K", platform: state.platform };
+      state.order.size = camount.getAttribute("data-camount");
+      paint();
+      return;
+    }
+    var cplatform = event.target.closest("[data-cplatform]");
+    if (cplatform) {
+      rememberCheckout();
+      state.order = state.order || { plan: state.plan, size: "5K", platform: "tradelocker" };
+      state.order.platform = cplatform.getAttribute("data-cplatform");
+      state.platform = state.order.platform;
+      paint();
+      return;
+    }
+    var term = event.target.closest("[data-term]");
+    if (term) {
+      var index = Number(term.getAttribute("data-term"));
+      var input = term.querySelector("input");
+      state.terms[index] = !!(input && input.checked);
+      var note = document.querySelector(".buy-account .red_text");
+      var readyNow = state.terms[0] && state.terms[1] && state.terms[2] && state.terms[3];
+      if (note) note.hidden = readyNow;
+      return;
+    }
+    if (event.target.closest("[data-apply]")) {
+      rememberCheckout();
+      if (!state.coupon.trim()) return;
+      toast("Coupon stays on this site. Nothing is sent to CK Capital.");
+      return;
+    }
+    if (event.target.closest("[data-address]")) {
+      rememberCheckout();
+      state.addressOpen = true;
+      paint();
+      return;
+    }
+    if (event.target.closest("[data-addr-cancel]") || event.target.classList.contains("addr-modal")) {
+      state.addressOpen = false;
+      paint();
+      return;
+    }
+    if (event.target.closest("[data-addr-save]")) {
+      state.savedAddress = {
+        first_name: (document.getElementById("addrFirst") || {}).value || "",
+        last_name: (document.getElementById("addrLast") || {}).value || "",
+        email: (document.getElementById("addrEmail") || {}).value || "",
+        number: (document.getElementById("addrContact") || {}).value || "",
+        apartment_no: (document.getElementById("addrApt") || {}).value || "",
+        street_address: (document.getElementById("addrStreet") || {}).value || "",
+        country: (document.getElementById("addrCountry") || {}).value || "",
+        city: (document.getElementById("addrCity") || {}).value || "",
+        state: (document.getElementById("addrState") || {}).value || "",
+        zip_code: (document.getElementById("addrZip") || {}).value || ""
+      };
+      state.addressOpen = false;
+      rememberCheckout();
+      paint();
+      return;
+    }
+    if (event.target.closest("[data-buy-now]")) {
+      rememberCheckout();
+      var agreed = document.querySelectorAll(".summary_lower_bottom_top input");
+      var accepted = agreed.length >= 4 && agreed[0].checked && agreed[1].checked && agreed[2].checked && agreed[3].checked;
+      if (!accepted) {
+        var warn = document.querySelector(".buy-account .red_text");
+        if (warn) warn.hidden = false;
+        return;
+      }
+      var current = state.order || { plan: state.plan, size: "5K", platform: state.platform };
+      fetch("api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          planId: current.plan,
+          size: current.size,
+          platform: current.platform,
+          method: state.payMethod
+        })
+      }).then(function (response) {
+        return response.json().then(function (body) { return { ok: response.ok, body: body }; });
+      }).then(function (result) {
+        if (!result.ok) {
+          toast(result.body.error || "Could not save this order.");
+          return;
+        }
+        return fetch("api/orders").then(function (response) {
+          return response.ok ? response.json() : { orders: [] };
+        }).then(function (orders) {
+          state.orders = (orders && orders.orders) || [];
+          state.accountId = state.orders[0] ? state.orders[0].id : "";
+          location.hash = "metrics";
+          paint();
+        });
+      }).catch(function () {
+        toast("Could not save this order.");
+      });
       return;
     }
     if (event.target.closest("[data-create]")) {
@@ -849,6 +1186,13 @@
       }
       return;
     }
+    if (event.target.closest("[data-logout]")) {
+      event.preventDefault();
+      fetch("api/logout", { method: "POST" }).finally(function () {
+        location.href = "signin.html";
+      });
+      return;
+    }
     if (event.target.closest("[data-method]")) {
       toast("This demo stays on this site. Nothing is sent to CK Capital.");
     }
@@ -885,24 +1229,116 @@
       return;
     }
     if (formEl.classList.contains("password-form")) {
-      state.passwordEdit = false;
-      toast("This demo stays on this site. Nothing is sent to CK Capital.");
-      paint();
+      var current = state.passwordFields.current_password;
+      var next = state.passwordFields.new_password;
+      var verify = state.passwordFields.verifyPassword;
+      if (!current || !next || !verify) {
+        toast("Fill every password field.");
+        return;
+      }
+      if (next.length < 6) {
+        toast("Password must be at least 6 characters.");
+        return;
+      }
+      if (next !== verify) {
+        toast("Passwords do not match.");
+        return;
+      }
+      fetch("api/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          current_password: current,
+          new_password: next,
+          verifyPassword: verify
+        })
+      }).then(function (response) {
+        return response.json().then(function (body) {
+          return { ok: response.ok, body: body };
+        });
+      }).then(function (result) {
+        if (!result.ok) {
+          toast(result.body.error || "Could not update the password.");
+          return;
+        }
+        state.passwordEdit = false;
+        state.passwordFields.current_password = "";
+        state.passwordFields.new_password = "";
+        state.passwordFields.verifyPassword = "";
+        toast("Password updated for this account.");
+        paint();
+      }).catch(function () {
+        toast("Could not update the password.");
+      });
+      return;
+    }
+    if (formEl.classList.contains("order-form") && state.order) {
+      var noteElOrder = formEl.querySelector(".demo-note");
+      fetch("api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          planId: state.order.plan,
+          size: state.order.size,
+          platform: state.order.platform
+        })
+      }).then(function (response) {
+        return response.json().then(function (body) {
+          return { ok: response.ok, body: body };
+        });
+      }).then(function (result) {
+        if (!result.ok) {
+          if (noteElOrder) {
+            noteElOrder.hidden = false;
+            noteElOrder.textContent = result.body.error || "Could not save this order.";
+          }
+          return;
+        }
+        return fetch("api/orders").then(function (response) {
+          return response.ok ? response.json() : { orders: [] };
+        }).then(function (data) {
+          state.orders = data.orders || [];
+          if (result.body.order) state.accountId = result.body.order.id;
+          location.hash = "metrics";
+          paint();
+        });
+      }).catch(function () {
+        if (noteElOrder) {
+          noteElOrder.hidden = false;
+          noteElOrder.textContent = "Could not save this order.";
+        }
+      });
       return;
     }
     var noteEl = formEl.querySelector(".demo-note");
     if (noteEl) noteEl.hidden = false;
   });
 
-  fetch("api/profile").then(function (response) {
+  fetch("api/me").then(function (response) {
+    if (response.status === 401) {
+      location.href = "signin.html";
+      return null;
+    }
     return response.ok ? response.json() : null;
+  }).then(function (me) {
+    if (!me) return null;
+    return fetch("api/profile").then(function (response) {
+      return response.ok ? response.json() : null;
+    });
   }).then(function (data) {
     if (!data || !data.profile) return;
     Object.keys(state.profileFields).forEach(function (key) {
       if (data.profile[key] != null) state.profileFields[key] = data.profile[key];
     });
-  }).catch(function () {}).then(function () {
-    window.addEventListener("hashchange", paint);
-    paint();
+    return fetch("api/orders").then(function (response) {
+      return response.ok ? response.json() : { orders: [] };
+    }).then(function (orders) {
+      state.orders = (orders && orders.orders) || [];
+      applyPendingCheckout();
+      window.addEventListener("hashchange", paint);
+      paint();
+    });
+  }).catch(function () {
+    location.href = "signin.html";
   });
 })();

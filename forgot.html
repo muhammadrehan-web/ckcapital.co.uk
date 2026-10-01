@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/auth.css?v=1" />
+  <link rel="stylesheet" href="css/auth.css?v=5" />
 </head>
 <body>
   <main class="auth">
@@ -18,14 +18,28 @@
           <a class="is-active" href="signin.html">Sign In</a>
           <a href="signup.html">Sign Up</a>
         </div>
-        <p class="auth-caption">Enter your email and we will send reset instructions.</p>
+        <p class="auth-caption">Enter the email you registered with.</p>
         <form class="auth-form" action="forgot.html" method="post">
           <label class="field">
             <span>Email</span>
             <span class="input-wrap"><input type="email" name="email" placeholder="Email" required autocomplete="email" /></span>
           </label>
+          <div class="reset-step" hidden>
+            <label class="field">
+              <span>New Password</span>
+              <span class="input-wrap">
+                <input type="password" name="password" placeholder="New Password" autocomplete="new-password" />
+                <button class="eye" type="button" data-eye aria-label="Show password"><img src="assets/auth/eye-off.svg" alt="" /></button>
+              </span>
+            </label>
+            <label class="field">
+              <span>Confirm Password</span>
+              <span class="input-wrap"><input type="password" name="confirm" placeholder="Confirm Password" autocomplete="new-password" /></span>
+            </label>
+            <input type="hidden" name="token" value="" />
+          </div>
           <button class="auth-submit" type="submit">Submit</button>
-          <p class="auth-note" hidden>This demo stays on this site. Nothing is sent to CK Capital.</p>
+          <p class="auth-note" hidden></p>
           <a class="forgot" href="signin.html">Back to Sign In</a>
         </form>
       </div>
@@ -36,6 +50,6 @@
       <p>CK Capital is a stepping stone for traders to under go a evaluation to follow the guidance and adhere to the rules in order to be a profitable consistent Traders. It’s simple, this means that you can trade private equity, private investors, hedge funds, institutional prop and any other methods of fund allocation and be able to be a consistency profitable trader in the financial markets.</p>
     </aside>
   </main>
-  <script src="js/auth.js?v=2"></script>
+  <script src="js/auth.js?v=7"></script>
 </body>
 </html>

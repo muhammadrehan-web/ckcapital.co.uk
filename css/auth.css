@@ -169,6 +169,8 @@ button, input, select { font-family: inherit; }
 }
 .remember { display: flex; align-items: center; gap: 8px; color: #fff; cursor: pointer; }
 .remember input { width: 18px; height: 18px; accent-color: #deac17; }
+.reset-step { display: flex; flex-direction: column; gap: 18px; }
+.reset-step[hidden] { display: none; }
 .forgot { color: #fff; font-size: 16px; }
 .auth-submit {
   height: 49px;

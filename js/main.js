@@ -73,21 +73,33 @@
     if (n % 1 === 0) return "$" + n.toLocaleString("en-US", { maximumFractionDigits: 0 });
     return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
-  function platformSuffix() {
+  function selectedPlatform() {
     const name = currentStep === "1step" ? "platform-1step" : currentStep === "instant" ? "platform-instant" : "platform-2step";
     const radio = document.querySelector('input[name="' + name + '"]:checked');
-    return radio && radio.value === "mt5" ? "/mt5" : "/tradelocker";
+    return radio && radio.value === "mt5" ? "mt5" : "tradelocker";
+  }
+  function selectedPlan() {
+    if (currentStep === "1step") return "onestep";
+    if (currentStep === "instant") return "instant";
+    if (currentPreference === "middle") return "middle";
+    if (currentPreference === "lite") return "light";
+    return "standard";
+  }
+  function sizeLabel(price) {
+    const n = parseInt(String(price).replace(/\D/g, ""), 10);
+    return n ? String(n / 1000) + "K" : "";
   }
   function updateCheckout() {
     const btn = document.querySelector('.sizes[data-step="' + currentStep + '"] .size-btn.active');
     const checkout = document.getElementById("checkout-btn");
     if (!btn || !checkout) return;
-    let code = btn.dataset.url;
-    if (currentStep === "2step") {
-      code = currentPreference === "middle" ? btn.dataset.middle : currentPreference === "lite" ? btn.dataset.lite : btn.dataset.standard;
-    }
     checkout.onclick = () => {
-      location.href = "https://app.ckcapital.co.uk/funding-evaluation/payments/" + code + platformSuffix();
+      sessionStorage.setItem("ck_checkout", JSON.stringify({
+        plan: selectedPlan(),
+        size: sizeLabel(btn.dataset.price),
+        platform: selectedPlatform()
+      }));
+      location.href = "portal.html#checkout";
     };
   }
   function sale(priceNum, table) {

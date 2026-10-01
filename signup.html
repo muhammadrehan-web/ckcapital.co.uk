@@ -32,16 +32,16 @@
           </label>
           <label class="field">
             <span>Nick Name</span>
-            <span class="input-wrap"><input type="text" name="nickName" placeholder="Nick Name" autocomplete="nickname" /></span>
+            <span class="input-wrap"><input type="text" name="nickName" placeholder="Nick Name" required autocomplete="nickname" /></span>
           </label>
           <div class="field">
             <span>Contact</span>
             <span class="phone">
               <span class="input-wrap code">
                 <span class="plus">+</span>
-                <input type="text" name="code" value="44" inputmode="numeric" maxlength="4" aria-label="Country code" />
+                <input type="text" name="code" value="44" inputmode="numeric" maxlength="4" required aria-label="Country code" />
               </span>
-              <span class="input-wrap"><input type="tel" name="contact" placeholder="Contact Number" autocomplete="tel" /></span>
+              <span class="input-wrap"><input type="tel" name="contact" placeholder="Contact Number" required autocomplete="tel" /></span>
             </span>
           </div>
           <label class="field">
@@ -55,13 +55,13 @@
           <div class="field">
             <span>Country</span>
             <span class="input-wrap select-wrap">
-              <input type="text" name="country" value="United Kingdom" autocomplete="off" />
+              <input type="text" name="country" value="United Kingdom" required autocomplete="off" />
             </span>
             <div class="picker-menu" data-menu="country" hidden></div>
           </div>
           <label class="field">
             <span>City</span>
-            <span class="input-wrap"><input type="text" name="city" placeholder="City" autocomplete="address-level2" /></span>
+            <span class="input-wrap"><input type="text" name="city" placeholder="City" required autocomplete="address-level2" /></span>
           </label>
           <label class="field">
             <span>Password</span>
@@ -72,7 +72,7 @@
           </label>
           <div class="recaptcha">
             <label>
-              <input type="checkbox" name="robot" />
+              <input type="checkbox" name="robot" required />
               <span>I'm not a robot</span>
             </label>
             <span class="recaptcha-brand">
@@ -93,6 +93,7 @@
       <p>CK Capital is a stepping stone for traders to under go a evaluation to follow the guidance and adhere to the rules in order to be a profitable consistent Traders. It’s simple, this means that you can trade private equity, private investors, hedge funds, institutional prop and any other methods of fund allocation and be able to be a consistency profitable trader in the financial markets.</p>
     </aside>
   </main>
-  <script src="js/auth.js?v=5"></script>
+  <script src="js/countries.js?v=1"></script>
+  <script src="js/auth.js?v=10"></script>
 </body>
 </html>

@@ -1,26 +1,35 @@
 const fs = require("fs");
 const http = require("http");
 const path = require("path");
-const { Pool } = require("pg");
+const { handleApi, setup } = require("./lib/api");
 
-const root = __dirname;
-const port = 3018;
+const bundledPages = [
+  path.join(__dirname, "index.html"),
+  path.join(__dirname, "about.html"),
+  path.join(__dirname, "affiliate.html"),
+  path.join(__dirname, "faq.html"),
+  path.join(__dirname, "forgot.html"),
+  path.join(__dirname, "signin.html"),
+  path.join(__dirname, "signup.html"),
+  path.join(__dirname, "portal.html")
+];
+void bundledPages;
 
-function loadEnv() {
-  const file = path.join(root, ".env");
-  if (!fs.existsSync(file)) return;
-  fs.readFileSync(file, "utf8").split(/\r?\n/).forEach(function (line) {
-    const match = line.match(/^([^#=]+)=(.*)$/);
-    if (match && !process.env[match[1]]) process.env[match[1]] = match[2];
-  });
+function projectRoot() {
+  const candidates = [process.cwd(), __dirname, path.join(__dirname, "..")];
+  for (let i = 0; i < candidates.length; i++) {
+    if (fs.existsSync(path.join(candidates[i], "index.html")) && fs.existsSync(path.join(candidates[i], "css", "styles.css"))) {
+      return candidates[i];
+    }
+  }
+  for (let i = 0; i < candidates.length; i++) {
+    if (fs.existsSync(path.join(candidates[i], "index.html"))) return candidates[i];
+  }
+  return __dirname;
 }
 
-loadEnv();
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
-});
+const root = projectRoot();
+const port = 3018;
 
 const types = {
   ".html": "text/html; charset=utf-8",
@@ -55,72 +64,13 @@ function staticFile(urlPath) {
   return null;
 }
 
-function sendJson(res, status, body) {
-  res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
-  res.end(JSON.stringify(body));
-}
-
-function readBody(req) {
-  return new Promise(function (resolve, reject) {
-    const chunks = [];
-    req.on("data", function (chunk) { chunks.push(chunk); });
-    req.on("end", function () {
-      try {
-        resolve(JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}"));
-      } catch (error) {
-        reject(error);
-      }
-    });
-    req.on("error", reject);
-  });
-}
-
-const profileColumns = ["nickname", "first_name", "last_name", "country_code", "contact", "email", "country", "city"];
-
-async function setup() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS profiles (
-      id integer PRIMARY KEY DEFAULT 1,
-      nickname text NOT NULL DEFAULT '',
-      first_name text NOT NULL DEFAULT '',
-      last_name text NOT NULL DEFAULT '',
-      country_code text NOT NULL DEFAULT '',
-      contact text NOT NULL DEFAULT '',
-      email text NOT NULL DEFAULT '',
-      country text NOT NULL DEFAULT '',
-      city text NOT NULL DEFAULT '',
-      updated_at timestamptz NOT NULL DEFAULT now(),
-      CONSTRAINT profiles_single CHECK (id = 1)
-    )
-  `);
-  await pool.query("INSERT INTO profiles (id) VALUES (1) ON CONFLICT (id) DO NOTHING");
-}
-
 const server = http.createServer(async function (req, res) {
   const url = new URL(req.url, "http://localhost");
   try {
-    if (url.pathname === "/api/health" && req.method === "GET") {
-      const result = await pool.query("SELECT current_database() AS database");
-      sendJson(res, 200, { ok: true, database: result.rows[0].database });
-      return;
-    }
-    if (url.pathname === "/api/profile" && req.method === "GET") {
-      const result = await pool.query("SELECT nickname, first_name, last_name, country_code, contact, email, country, city FROM profiles WHERE id = 1");
-      sendJson(res, 200, { profile: result.rows[0] || {} });
-      return;
-    }
-    if (url.pathname === "/api/profile" && req.method === "POST") {
-      const body = await readBody(req);
-      const values = profileColumns.map(function (column) { return String(body[column] || ""); });
-      await pool.query(
-        "UPDATE profiles SET nickname = $1, first_name = $2, last_name = $3, country_code = $4, contact = $5, email = $6, country = $7, city = $8, updated_at = now() WHERE id = 1",
-        values
-      );
-      sendJson(res, 200, { ok: true });
-      return;
-    }
+    if (await handleApi(req, res)) return;
   } catch (error) {
-    sendJson(res, 500, { ok: false });
+    res.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify({ ok: false }));
     return;
   }
 
